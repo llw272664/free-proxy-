@@ -41,15 +41,6 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) error {
 	return err
 }
 
-const deleteOldJobs = `-- name: DeleteOldJobs :exec
-DELETE FROM jobs WHERE created_at < ?
-`
-
-func (q *Queries) DeleteOldJobs(ctx context.Context, createdAt string) error {
-	_, err := q.db.ExecContext(ctx, deleteOldJobs, createdAt)
-	return err
-}
-
 const getJob = `-- name: GetJob :one
 SELECT id, name, status, created_at, started_at, finished_at, result, error FROM jobs WHERE id = ?
 `

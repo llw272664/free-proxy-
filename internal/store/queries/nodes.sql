@@ -4,20 +4,6 @@ SELECT * FROM proxy_nodes WHERE id = ?;
 -- name: GetNodeByIdentity :one
 SELECT * FROM proxy_nodes WHERE provider = ? AND provider_identity = ?;
 
--- name: ListNodeIDs :many
-SELECT id FROM proxy_nodes;
-
--- name: DeleteNode :exec
-DELETE FROM proxy_nodes WHERE id = ?;
-
--- name: MarkAllNodesAbsent :exec
-UPDATE proxy_nodes SET source_present = 0;
-
--- name: DeleteStaleAbsentNodes :exec
-DELETE FROM proxy_nodes
-WHERE source_present = 0
-  AND (last_seen_at IS NULL OR last_seen_at < ?);
-
 -- name: InsertDiscoveredNode :exec
 INSERT INTO proxy_nodes (
     id, provider, provider_node_id, provider_identity, country, country_code,
@@ -44,18 +30,6 @@ ON CONFLICT(provider, provider_identity) DO UPDATE SET
     fetched_at       = excluded.fetched_at,
     last_seen_at     = excluded.last_seen_at,
     source_present   = 1;
-
--- name: UpdateNodeProbeOutcome :exec
-UPDATE proxy_nodes SET
-    status               = ?,
-    latency_ms           = ?,
-    consecutive_failures = ?,
-    success_count        = ?,
-    failure_count        = ?,
-    last_probed_at       = ?,
-    last_success_at      = ?,
-    cooldown_until       = ?
-WHERE id = ?;
 
 -- name: UpdateNodeIPInfo :exec
 UPDATE proxy_nodes SET

@@ -377,6 +377,7 @@ func installDepsCmd() *cobra.Command {
 
 func installCmd() *cobra.Command {
 	var rotateAdmin bool
+	var quiet bool
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install Free Proxy on this machine: binary, dependencies, env file, service",
@@ -468,6 +469,16 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("install service: %w", err)
 			}
 			fmt.Fprintln(out, "Free Proxy installed and started.")
+			// An update triggered from the console runs this command with its
+			// output going to a file. Credentials are unchanged there, so the
+			// only thing printing them would achieve is a second copy of the
+			// password on disk. A reset still prints: that password is new, and
+			// this is the one place it can be read.
+			if quiet && !rotateAdmin && !passwordReset {
+				fmt.Fprintln(out, "Management path, username and password are unchanged.")
+				fmt.Fprintln(out, "Run `free-proxy credentials` to print them.")
+				return nil
+			}
 			switch {
 			case rotateAdmin:
 				fmt.Fprintln(out, "Management path and admin login were explicitly rotated:")
@@ -493,6 +504,7 @@ func installCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&rotateAdmin, "rotate-admin", false, "Generate a new random management path, username, and password")
+	cmd.Flags().BoolVar(&quiet, "quiet", false, "Do not print unchanged credentials (used by the console's updater)")
 	return cmd
 }
 

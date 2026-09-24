@@ -6,9 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -129,9 +127,9 @@ func ParseResponse(text string, limit int, now time.Time) (ParseResult, error) {
 		return ParseResult{}, fmt.Errorf("VPNGate response has no usable header")
 	}
 
-	reader := csv.NewReader(strings.NewReader(strings.Join(lines, "\n")))
-	reader.FieldsPerRecord = -1
-	header, err := reader.Read()
+	headerReader := csv.NewReader(strings.NewReader(lines[0]))
+	headerReader.FieldsPerRecord = -1
+	header, err := headerReader.Read()
 	if err != nil {
 		return ParseResult{}, fmt.Errorf("VPNGate header unreadable: %w", err)
 	}
@@ -148,15 +146,30 @@ func ParseResponse(text string, limit int, now time.Time) (ParseResult, error) {
 
 	var result ParseResult
 	seen := map[string]bool{}
-	for {
-		row, err := reader.Read()
-		if errors.Is(err, io.EOF) {
-			break
+	// Keep the positions of the fields needed to build a node.  VPNGate
+	// publishes one record per physical line, so parsing each line separately
+	// lets us recover when one dirty record contains an otherwise harmless
+	// quote.  A malformed record is then isolated instead of consuming the
+	// remainder of the response as an unterminated quoted field would do.
+	required := make([]int, 0, 2)
+	for _, name := range []string{"IP", "OpenVPN_ConfigData_Base64"} {
+		if idx, ok := col[name]; ok {
+			required = append(required, idx)
 		}
-		if err != nil {
-			return ParseResult{}, fmt.Errorf("VPNGate CSV row unreadable: %w", err)
-		}
+	}
+	var firstCSVErr error
+	parsedRows := 0
+	for _, line := range lines[1:] {
 		result.Stats.TotalRows++
+		row, err := parseRecord(line, required)
+		if err != nil {
+			result.Stats.MalformedRows++
+			if firstCSVErr == nil {
+				firstCSVErr = err
+			}
+			continue
+		}
+		parsedRows++
 		if len(result.Nodes) >= limit {
 			continue
 		}
@@ -204,5 +217,46 @@ func ParseResponse(text string, limit int, now time.Time) (ParseResult, error) {
 		seen[identity] = true
 		result.Stats.ValidRows++
 	}
+	// If every data record was syntactically unreadable, preserve the previous
+	// all-or-nothing error for callers rather than reporting a successful empty
+	// snapshot.  Once at least one record was parsed, individual bad rows are
+	// intentionally tolerated and the usable nodes are returned.
+	if parsedRows == 0 && firstCSVErr != nil {
+		return ParseResult{}, fmt.Errorf("VPNGate CSV row unreadable: %w", firstCSVErr)
+	}
 	return result, nil
+}
+
+// parseRecord parses one VPNGate data line.  The strict pass catches truly
+// broken quoted fields.  If it fails, retry with LazyQuotes so that a bare
+// quote in an otherwise unquoted field (which VPNGate occasionally publishes)
+// does not discard the entire response.  The retry is accepted only when the
+// fields required to identify a node are present; this keeps truncated rows
+// malformed while allowing harmless metadata corruption.
+func parseRecord(line string, required []int) ([]string, error) {
+	parse := func(lazy bool) ([]string, error) {
+		reader := csv.NewReader(strings.NewReader(line))
+		reader.FieldsPerRecord = -1
+		reader.LazyQuotes = lazy
+		return reader.Read()
+	}
+
+	row, err := parse(false)
+	if err == nil {
+		return row, nil
+	}
+	lazyRow, lazyErr := parse(true)
+	if lazyErr == nil {
+		complete := true
+		for _, idx := range required {
+			if idx >= len(lazyRow) {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			return lazyRow, nil
+		}
+	}
+	return nil, err
 }

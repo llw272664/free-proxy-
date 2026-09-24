@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/masteralanlab/free-proxy/internal/services"
 	"github.com/masteralanlab/free-proxy/internal/store"
 	"github.com/masteralanlab/free-proxy/internal/tunnel"
+	"github.com/masteralanlab/free-proxy/internal/updater"
 )
 
 // buildDeps wires the entire application graph (the Go analogue of lifespan).
@@ -94,12 +96,18 @@ func buildDeps(ctx context.Context, cfg *config.Config, repos *store.Repos, auth
 		discovery, probe, pool, gateway, autoSwitch, coordinator)
 	liveness := services.NewLivenessService(repos.Nodes, gateway)
 
+	// The updater is given the version this binary was stamped with — what it
+	// compares against the published releases — and the file `install` writes
+	// to while it finishes an upgrade this process will not be alive to see.
+	selfUpdate := updater.New(cfg.UpdateRepo, version, filepath.Join(cfg.LogsDir(), "update.log"))
+
 	return &api.Deps{
 		Cfg: cfg, Version: version, Repos: repos, Auth: auth, Logs: logs,
 		Coordinator: coordinator, Jobs: jobs, Discovery: discovery, Probe: probe,
 		Gateway: gateway, Pool: pool, Settings: settingsSvc, Health: health,
 		Diagnostics: diagnostics, Maintenance: maintenance, AutoSwitch: autoSwitch,
 		Liveness:         liveness,
+		Updater:          selfUpdate,
 		MaintenanceMon:   services.NewMaintenanceMonitor(maintenance, gateway),
 		ActiveLatencyMon: services.NewActiveLatencyMonitor(repos.Nodes, gateway, runner),
 		HealthMon:        services.NewHealthMonitor(health, gateway),

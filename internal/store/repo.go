@@ -48,13 +48,6 @@ func NewRepos(db *sql.DB) *Repos {
 
 func tstr(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
-func tptr(t *time.Time) sql.NullString {
-	if t == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: tstr(*t), Valid: true}
-}
-
 func parseT(s string) time.Time {
 	v, _ := time.Parse(time.RFC3339Nano, s)
 	return v
@@ -424,43 +417,6 @@ func (r *NodeRepository) InsertDiscovered(ctx context.Context, n domain.Discover
 	})
 }
 
-// MarkAllAbsent flags every node as not present in the latest source snapshot.
-func (r *NodeRepository) MarkAllAbsent(ctx context.Context) error {
-	return r.q.MarkAllNodesAbsent(ctx)
-}
-
-// DeleteStaleAbsent removes nodes absent from the source since before cutoff.
-func (r *NodeRepository) DeleteStaleAbsent(ctx context.Context, cutoff time.Time) error {
-	return r.q.DeleteStaleAbsentNodes(ctx, sql.NullString{String: tstr(cutoff), Valid: true})
-}
-
-// ProbeOutcome carries the mutable fields updated after a probe.
-type ProbeOutcome struct {
-	Status              domain.NodeStatus
-	LatencyMS           int
-	ConsecutiveFailures int
-	SuccessCount        int
-	FailureCount        int
-	LastProbedAt        *time.Time
-	LastSuccessAt       *time.Time
-	CooldownUntil       *time.Time
-}
-
-// UpdateProbeOutcome persists the result of a probe against a node.
-func (r *NodeRepository) UpdateProbeOutcome(ctx context.Context, id string, o ProbeOutcome) error {
-	return r.q.UpdateNodeProbeOutcome(ctx, gen.UpdateNodeProbeOutcomeParams{
-		Status:              string(o.Status),
-		LatencyMs:           int64(o.LatencyMS),
-		ConsecutiveFailures: int64(o.ConsecutiveFailures),
-		SuccessCount:        int64(o.SuccessCount),
-		FailureCount:        int64(o.FailureCount),
-		LastProbedAt:        tptr(o.LastProbedAt),
-		LastSuccessAt:       tptr(o.LastSuccessAt),
-		CooldownUntil:       tptr(o.CooldownUntil),
-		ID:                  id,
-	})
-}
-
 // UpdateIPInfo persists IP classification for a node.
 func (r *NodeRepository) UpdateIPInfo(ctx context.Context, id string, info domain.IpInfo, at time.Time) error {
 	return r.q.UpdateNodeIPInfo(ctx, gen.UpdateNodeIPInfoParams{
@@ -478,11 +434,6 @@ func (r *NodeRepository) UpdateIPInfo(ctx context.Context, id string, info domai
 // SetStatus updates only a node's status.
 func (r *NodeRepository) SetStatus(ctx context.Context, id string, status domain.NodeStatus) error {
 	return r.q.SetNodeStatus(ctx, gen.SetNodeStatusParams{Status: string(status), ID: id})
-}
-
-// Delete removes a node.
-func (r *NodeRepository) Delete(ctx context.Context, id string) error {
-	return r.q.DeleteNode(ctx, id)
 }
 
 // Statistics counts the whole pool. Every retained row is a node the liveness
@@ -573,11 +524,6 @@ func (r *SettingsRepository) SetConnectionEnabled(ctx context.Context, enabled b
 	return r.q.SetConnectionEnabled(ctx, b2i(enabled))
 }
 
-// SetFixedNode records the pinned node id (nil clears it).
-func (r *SettingsRepository) SetFixedNode(ctx context.Context, id *string) error {
-	return r.q.SetFixedNode(ctx, strToNS(id))
-}
-
 // ToggleFavorite flips membership and returns the updated favorite list.
 func (r *SettingsRepository) ToggleFavorite(ctx context.Context, nodeID string) ([]string, error) {
 	exists, err := r.q.IsFavorite(ctx, nodeID)
@@ -593,52 +539,6 @@ func (r *SettingsRepository) ToggleFavorite(ctx context.Context, nodeID string) 
 		return nil, err
 	}
 	return r.q.ListFavorites(ctx)
-}
-
-// BlacklistEntry mirrors a node_blacklist row in domain terms.
-type BlacklistEntry struct {
-	NodeID    string
-	Reason    string
-	MarkedAt  time.Time
-	ExpiresAt time.Time
-}
-
-// Blacklist marks a node unavailable until expiresAt.
-func (r *SettingsRepository) Blacklist(ctx context.Context, nodeID, reason string, markedAt, expiresAt time.Time) error {
-	return r.q.UpsertBlacklist(ctx, gen.UpsertBlacklistParams{
-		NodeID:    nodeID,
-		Reason:    reason,
-		MarkedAt:  tstr(markedAt),
-		ExpiresAt: tstr(expiresAt),
-	})
-}
-
-// RemoveBlacklist clears a blacklist entry.
-func (r *SettingsRepository) RemoveBlacklist(ctx context.Context, nodeID string) error {
-	return r.q.DeleteBlacklist(ctx, nodeID)
-}
-
-// PurgeExpiredBlacklist deletes entries whose cooldown has elapsed.
-func (r *SettingsRepository) PurgeExpiredBlacklist(ctx context.Context, now time.Time) error {
-	return r.q.DeleteExpiredBlacklist(ctx, tstr(now))
-}
-
-// ListBlacklist returns all current blacklist entries.
-func (r *SettingsRepository) ListBlacklist(ctx context.Context) ([]BlacklistEntry, error) {
-	rows, err := r.q.ListBlacklist(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]BlacklistEntry, 0, len(rows))
-	for _, b := range rows {
-		out = append(out, BlacklistEntry{
-			NodeID:    b.NodeID,
-			Reason:    b.Reason,
-			MarkedAt:  parseT(b.MarkedAt),
-			ExpiresAt: parseT(b.ExpiresAt),
-		})
-	}
-	return out, nil
 }
 
 // ---- JobRepository ----------------------------------------------------------

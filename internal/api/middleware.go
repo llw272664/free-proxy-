@@ -55,9 +55,19 @@ func SecretPath(auth *security.AuthService) echo.MiddlewareFunc {
 			}
 			stripped := strings.TrimPrefix(p, prefix)
 			req.URL.Path = stripped
+			// The router matches on RawPath whenever it is set — which is
+			// whenever the request path contains a percent-encoded character.
+			// Leaving it unstripped routes those requests against the prefixed
+			// path, which matches no API route and lands them on the SPA
+			// fallback: a node id needing encoding would get index.html back
+			// with a 200 instead of its data. The prefix is alphanumeric, so
+			// its raw and decoded forms are identical.
+			if req.URL.RawPath != "" {
+				req.URL.RawPath = strings.TrimPrefix(req.URL.RawPath, prefix)
+			}
 
-			token := sessionCookie(c)
-			authed := auth.Sessions.Valid(token)
+			token := validSession(c, auth.Sessions)
+			authed := token != ""
 			c.Set(ctxAuthorized, authed)
 			c.Set(ctxSession, token)
 
@@ -78,10 +88,22 @@ func isPublic(path string) bool {
 	return !strings.HasPrefix(path, "/api/")
 }
 
-func sessionCookie(c *echo.Context) string {
-	cookie, err := c.Cookie("session")
-	if err != nil || cookie == nil {
-		return ""
+// validSession returns the first session cookie on the request that names a
+// live session, or "" when none does.
+//
+// A browser can hold more than one cookie called "session" that this request
+// carries. Cookies are not port-scoped, so any other panel on the same host
+// shares the name with us, and a console served from "/" leaves one that
+// matches every path we ever move to. Reading only the first — which is what
+// Request.Cookie returns — means one stale value locks the console out for as
+// long as that cookie lives: the login succeeds and sets a good cookie, and
+// every request after it still answers 401. Checking them all costs a map
+// lookup each.
+func validSession(c *echo.Context, sessions *security.SessionManager) string {
+	for _, cookie := range c.Request().Cookies() {
+		if cookie.Name == "session" && sessions.Valid(cookie.Value) {
+			return cookie.Value
+		}
 	}
-	return cookie.Value
+	return ""
 }

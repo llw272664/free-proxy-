@@ -79,3 +79,42 @@ func TestParseResponseRejectsTruncatedCSV(t *testing.T) {
 		t.Fatal("expected malformed CSV to fail instead of accepting a partial snapshot")
 	}
 }
+
+func TestParseResponseToleratesBareQuotes(t *testing.T) {
+	cfg := "remote 1.2.3.4 1194 udp\n"
+	enc := base64.StdEncoding.EncodeToString([]byte(cfg))
+	header := "#HostName,IP,Comment,OpenVPN_ConfigData_Base64"
+	// The comment contains a bare quote, which is common in the upstream feed
+	// even though it is not escaped as a CSV quoted field.
+	row := "host1,1.2.3.4,operator says \"hello\"," + enc
+
+	res, err := ParseResponse(strings.Join([]string{header, row}, "\n"), 10, time.Now())
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(res.Nodes) != 1 {
+		t.Fatalf("nodes = %d, want 1 (bare quote should not abort the response)", len(res.Nodes))
+	}
+	if res.Stats.MalformedRows != 0 {
+		t.Fatalf("malformed rows = %d, want 0", res.Stats.MalformedRows)
+	}
+}
+
+func TestParseResponseSkipsMalformedRows(t *testing.T) {
+	cfg := "remote 5.6.7.8 443 tcp\n"
+	enc := base64.StdEncoding.EncodeToString([]byte(cfg))
+	header := "#HostName,IP,OpenVPN_ConfigData_Base64"
+	bad := `broken,5.6.7.8,"unterminated`
+	good := "host2,5.6.7.9," + enc
+
+	res, err := ParseResponse(strings.Join([]string{header, bad, good}, "\n"), 10, time.Now())
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(res.Nodes) != 1 || res.Nodes[0].IPAddress != "5.6.7.9" {
+		t.Fatalf("nodes = %+v, want only the valid row", res.Nodes)
+	}
+	if res.Stats.TotalRows != 2 || res.Stats.MalformedRows != 1 {
+		t.Fatalf("stats = %+v, want total 2 and malformed 1", res.Stats)
+	}
+}

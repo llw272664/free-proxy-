@@ -10,13 +10,12 @@ import (
 )
 
 // ProviderPort is the discovery source abstraction (satisfied by vpngate.Provider).
+// ParseStats reports how the last response parsed, which the maintenance result
+// carries so a fetch that returned mostly unusable rows is visible as that
+// rather than as an empty pool.
 type ProviderPort interface {
 	Name() string
 	Discover(ctx context.Context) ([]domain.DiscoveredNode, error)
-}
-
-// parseStatsProvider is optionally implemented by providers to expose row stats.
-type parseStatsProvider interface {
 	ParseStats() (total, valid, dup, malformed, missing int)
 }
 
@@ -69,14 +68,12 @@ func (s *DiscoveryService) Discover(ctx context.Context) (domain.DiscoveryResult
 		Discovered: len(kept),
 		Stored:     stored,
 	}
-	if sp, ok := s.provider.(parseStatsProvider); ok {
-		total, valid, dup, malformed, missing := sp.ParseStats()
-		result.TotalRows = &total
-		result.ValidRows = &valid
-		result.DuplicateRows = &dup
-		result.MalformedRows = &malformed
-		result.MissingFieldRows = &missing
-	}
+	total, valid, dup, malformed, missing := s.provider.ParseStats()
+	result.TotalRows = &total
+	result.ValidRows = &valid
+	result.DuplicateRows = &dup
+	result.MalformedRows = &malformed
+	result.MissingFieldRows = &missing
 	// A successful provider response is an authoritative snapshot of the usable
 	// nodes returned by that provider. Malformed or incomplete individual rows
 	// are intentionally excluded from the current pool; keeping the previous

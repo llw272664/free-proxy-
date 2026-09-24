@@ -214,9 +214,6 @@ func (m *Managed) watch() {
 // kernel was already free to reassign.
 func (m *Managed) Running() bool { return !m.exited() }
 
-// Device returns the tunnel device name.
-func (m *Managed) Device() string { return m.device }
-
 // SetExitHandler installs a callback invoked on unexpected exit.
 func (m *Managed) SetExitHandler(h func(code int)) {
 	m.mu.Lock()

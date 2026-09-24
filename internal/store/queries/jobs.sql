@@ -16,6 +16,3 @@ UPDATE jobs SET status = 'failed', finished_at = ?, error = ? WHERE id = ?;
 -- name: CancelUnfinishedJobs :exec
 UPDATE jobs SET status = 'cancelled', finished_at = ?
 WHERE status IN ('pending', 'running');
-
--- name: DeleteOldJobs :exec
-DELETE FROM jobs WHERE created_at < ?;

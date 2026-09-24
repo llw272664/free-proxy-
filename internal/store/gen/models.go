@@ -8,6 +8,21 @@ import (
 	"database/sql"
 )
 
+type AdminSetting struct {
+	ID                int64  `json:"id"`
+	Username          string `json:"username"`
+	PasswordHash      string `json:"password_hash"`
+	SecretPath        string `json:"secret_path"`
+	WebPort           int64  `json:"web_port"`
+	WebExternalAccess int64  `json:"web_external_access"`
+	PasswordPlain     string `json:"password_plain"`
+}
+
+type AppMetadatum struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Favorite struct {
 	NodeID string `json:"node_id"`
 }
@@ -91,6 +106,17 @@ type ProxyNode struct {
 	CooldownUntil       sql.NullString `json:"cooldown_until"`
 	LastSeenAt          sql.NullString `json:"last_seen_at"`
 	SourcePresent       int64          `json:"source_present"`
+	LivenessFailures    int64          `json:"liveness_failures"`
+	LastAliveAt         sql.NullString `json:"last_alive_at"`
+}
+
+type ProxySetting struct {
+	ID             int64  `json:"id"`
+	Enabled        int64  `json:"enabled"`
+	Port           int64  `json:"port"`
+	Username       string `json:"username"`
+	PasswordHash   string `json:"password_hash"`
+	ExternalAccess int64  `json:"external_access"`
 }
 
 type RuntimeSetting struct {

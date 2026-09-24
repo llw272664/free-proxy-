@@ -296,14 +296,17 @@ so this update reset it once. The management path and username are unchanged:
 - 只发生一次：之后的升级会原样保留密码，忘记时用 [`credentials`](#free-proxy-credentials) 查看即可。
 
 ```text
-free-proxy install [--rotate-admin]
+free-proxy install [--rotate-admin] [--quiet]
 ```
 
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `--rotate-admin` | 布尔开关 | 关闭 | 生成新的随机管理路径、管理员用户名和密码，并在命令输出中显示新值。 |
+| `--quiet` | 布尔开关 | 关闭 | 凭据未发生变化时不打印它们。网页后台的「版本更新」在升级末尾自动执行本命令，输出写入 `/var/lib/free-proxy/logs/update.log`；密码没有变，就没有必要在磁盘上多留一份。凭据被轮换或被一次性重置时仍会照常打印。 |
 
 此命令要求 Linux、`root` 权限，以及 systemd 或 OpenRC。
+
+> 💡 日常更新不必再登录服务器：网页后台 **「系统 → 版本更新」** 会下载官方二进制、校验 SHA256、替换程序，并在最后自动执行一次 `free-proxy install --quiet` 来完成依赖、服务单元和重启。手动执行本命令与它效果相同。
 
 ```bash
 # 首次安装或保留设置进行更新

@@ -1,6 +1,6 @@
 import type {
   AccessConfig, AppSettings, AuthConfig, CountryFacet, GatewayStatus, Job, LogEntry, PoolStatistics,
-  ProxyHealthResult, ProxyNodePage, ProxySettings, SystemDiagnostics, SystemStatus,
+  ProxyHealthResult, ProxyNodePage, ProxySettings, SystemDiagnostics, SystemStatus, UpdateStatus,
 } from "./types";
 
 const API = "./api/v1";
@@ -97,6 +97,23 @@ export const updateSystemConfig = (settings: AppSettings, adminPassword: string,
   request<{ ok: boolean; restart_needed: boolean; reauth_required: boolean; settings: AppSettings }>("/system/config", {
     method: "PUT", body: JSON.stringify({ settings, admin_password: adminPassword, proxy_password: proxyPassword }),
   });
+export const updateStatus = (refresh = false) =>
+  request<UpdateStatus>(`/system/update${refresh ? "?refresh=true" : ""}`);
+export const startUpdate = () => post("/system/update") as Promise<Job>;
+
+// The update replaces the binary and restarts the service, so the answer to
+// "is it back?" cannot come from an authenticated call — the session died with
+// the old process. The SPA itself is served without a session, and its return
+// is the signal the new version is listening.
+export async function serverIsBack(): Promise<boolean> {
+  try {
+    const res = await fetch(`./?probe=${Date.now()}`, { cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export const getLogs = (params: Record<string, string | number>) => {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== "" && v !== undefined) q.set(k, String(v));

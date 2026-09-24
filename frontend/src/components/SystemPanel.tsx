@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../api";
-import type { SystemDiagnostics, SystemStatus } from "../types";
+import type { SystemDiagnostics, SystemStatus, UpdateStatus } from "../types";
 import { useUI } from "../store";
 import { Card, Spinner } from "./ui";
+import { UpdatePanel } from "./UpdatePanel";
 
-export function SystemPanel() {
+export function SystemPanel({ onUpdateStatus }: { onUpdateStatus?: (s: UpdateStatus) => void }) {
   const push = useUI((s) => s.push);
   const [diag, setDiag] = useState<SystemDiagnostics | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -39,6 +40,8 @@ export function SystemPanel() {
 
   return (
     <div className="grid gap-4">
+      <UpdatePanel onStatus={onUpdateStatus} />
+
       <Card
         title="系统诊断"
         actions={
@@ -62,8 +65,10 @@ export function SystemPanel() {
         </div>
       </Card>
 
+      {/* The version is stamped from the release tag, which carries its own
+          "v" — a second one printed "vv0.1.21". */}
       {status && (
-        <Card title={`运行状态 · v${status.version}`}>
+        <Card title={`运行状态 · ${status.version}`}>
           <div className="grid sm:grid-cols-3 gap-3 text-sm">
             <Info label="环境" value={status.environment} />
             <Info label="节点数" value={String(status.nodes)} />

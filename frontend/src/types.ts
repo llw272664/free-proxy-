@@ -138,6 +138,35 @@ export interface SystemStatus {
   monitor_details: Record<string, Record<string, unknown>>;
 }
 
+// One group of changes in a release ("新功能", "问题修复", ...). The server
+// builds these from the release notes, so the console only renders them.
+export interface ReleaseSection {
+  title: string;
+  items: string[];
+}
+
+export interface ReleaseNotes {
+  version: string;
+  published_at: string;
+  url: string;
+  sections: ReleaseSection[] | null;
+}
+
+export interface UpdateStatus {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  // Every release between the installed version and the newest one, newest
+  // first — an update installs the newest and brings all of them.
+  pending: ReleaseNotes[] | null;
+  supported: boolean;
+  unsupported_reason: string;
+  updating: boolean;
+  checked_at: string;
+  releases_url: string;
+  last_log: string;
+}
+
 export interface LogEntry {
   timestamp: string;
   level: string;

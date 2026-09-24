@@ -25,37 +25,6 @@ func NewProxyPoolService(nodes *store.NodeRepository, settings *store.SettingsRe
 	return &ProxyPoolService{nodes: nodes, settings: settings}
 }
 
-// SelectBest returns the best eligible node, or nil when none/disabled.
-func (s *ProxyPoolService) SelectBest(ctx context.Context, excludeNodeID string) (*domain.ProxyNodeRead, error) {
-	settings, err := s.settings.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !settings.ConnectionEnabled {
-		return nil, nil
-	}
-	candidates, err := s.nodes.ListNodes(ctx, store.NodeFilter{Status: string(domain.NodeReady)}, candidateFetchLimit, 0)
-	if err != nil {
-		return nil, err
-	}
-	candidates = ApplyFilters(candidates, settings, false)
-	if excludeNodeID != "" {
-		filtered := candidates[:0]
-		for _, n := range candidates {
-			if n.ID != excludeNodeID {
-				filtered = append(filtered, n)
-			}
-		}
-		candidates = filtered
-	}
-	SortCandidates(candidates, settings)
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-	best := candidates[0]
-	return &best, nil
-}
-
 // ValidateAllowed errors if the node is disallowed by current routing settings.
 func (s *ProxyPoolService) ValidateAllowed(ctx context.Context, node domain.ProxyNodeRead) error {
 	settings, err := s.settings.Get(ctx)

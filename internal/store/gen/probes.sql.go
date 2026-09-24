@@ -9,15 +9,6 @@ import (
 	"context"
 )
 
-const deleteOldProbes = `-- name: DeleteOldProbes :exec
-DELETE FROM probe_results WHERE probed_at < ?
-`
-
-func (q *Queries) DeleteOldProbes(ctx context.Context, probedAt string) error {
-	_, err := q.db.ExecContext(ctx, deleteOldProbes, probedAt)
-	return err
-}
-
 const insertProbeResult = `-- name: InsertProbeResult :one
 INSERT INTO probe_results (node_id, available, latency_ms, probed_at, result)
 VALUES (?, ?, ?, ?, ?)

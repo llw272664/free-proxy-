@@ -55,6 +55,12 @@ type Config struct {
 	TunnelInterface   string `env:"TUNNEL_INTERFACE"`
 	ProbeDevicePrefix string `env:"PROBE_DEVICE_PREFIX"`
 
+	// UpdateRepo is the GitHub repository the console offers updates from. It
+	// is the same variable install.sh reads, so a fork installed from its own
+	// repository keeps updating from it. Left empty it falls back to the
+	// project default in internal/updater.
+	UpdateRepo string `env:"REPO"`
+
 	// PolicyRoutingTable belongs to that same family. TestTunStart/TestTunEnd do
 	// not come from the environment — they start at the constants in tuning.go —
 	// but finalizeNaming may narrow the range to keep it clear of

@@ -132,7 +132,7 @@ func (h *Handlers) cookiePath() string {
 
 func (h *Handlers) ListProxies(c *echo.Context) error {
 	limit := clampInt(queryInt(c, "limit", 100), 1, 500)
-	offset := maxInt(queryInt(c, "offset", 0), 0)
+	offset := max(queryInt(c, "offset", 0), 0)
 	// Every retained node is one the liveness sweep has not disproved, so the
 	// default list is the whole pool. listed_only narrows to the provider's
 	// newest published batch, which is a diagnostic view of the rotation rather
@@ -553,19 +553,15 @@ func (h *Handlers) ExportLogs(c *echo.Context) error {
 
 func monitorPayload(state interface{ AsMap() map[string]any }) map[string]any {
 	m := state.AsMap()
-	healthy := m["last_heartbeat_at"] != nil && m["last_error"] == nil
-	out := map[string]any{"running": true, "status": statusWord(healthy)}
+	status := "degraded"
+	if m["last_heartbeat_at"] != nil && m["last_error"] == nil {
+		status = "healthy"
+	}
+	out := map[string]any{"running": true, "status": status}
 	for k, v := range m {
 		out[k] = v
 	}
 	return out
-}
-
-func statusWord(healthy bool) string {
-	if healthy {
-		return "healthy"
-	}
-	return "degraded"
 }
 
 func queryInt(c *echo.Context, name string, def int) int {
@@ -580,22 +576,7 @@ func queryInt(c *echo.Context, name string, def int) int {
 	return n
 }
 
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
+func clampInt(v, lo, hi int) int { return min(max(v, lo), hi) }
 
 func dedupeNonEmpty(ids []string) []string {
 	seen := map[string]bool{}

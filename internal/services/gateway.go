@@ -147,17 +147,6 @@ func (g *GatewayService) activate(ctx context.Context, nodeID string) (domain.Tu
 	return result, nil
 }
 
-// ActivateJob is the JobFunc form of Activate.
-func (g *GatewayService) ActivateJob(nodeID string) JobFunc {
-	return func(ctx context.Context) (map[string]any, error) {
-		res, err := g.Activate(ctx, nodeID)
-		if err != nil {
-			return nil, err
-		}
-		return toMap(res)
-	}
-}
-
 // Disconnect disables connections and tears down the exit.
 func (g *GatewayService) Disconnect(ctx context.Context) {
 	g.opMu.Lock()

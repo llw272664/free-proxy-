@@ -15,8 +15,12 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # Full history and tags: the release notes are built from the commits
+      # since the previous tag, which a shallow checkout does not have.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -35,8 +39,17 @@ jobs:
       - name: Build frontend and cross-compile binaries
         run: make cross VERSION="$GITHUB_REF_NAME"
 
+      # SHA256SUMS is not a courtesy: the console's updater refuses to install a
+      # release without it, and verifies the binary against it before replacing
+      # the running one.
       - name: Generate checksums
         run: cd dist && sha256sum free-proxy-linux-amd64 free-proxy-linux-arm64 > SHA256SUMS
+
+      # The notes are what the console shows an operator before they press
+      # "更新", so they are built from the commits rather than from the merged
+      # pull requests this project does not have.
+      - name: Build release notes
+        run: sh scripts/release-notes.sh "$GITHUB_REF_NAME" > dist/release-notes.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -45,5 +58,5 @@ jobs:
             dist/free-proxy-linux-amd64
             dist/free-proxy-linux-arm64
             dist/SHA256SUMS
-          generate_release_notes: true
+          body_path: dist/release-notes.md
           fail_on_unmatched_files: true

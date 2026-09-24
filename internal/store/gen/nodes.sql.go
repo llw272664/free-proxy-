@@ -10,28 +10,8 @@ import (
 	"database/sql"
 )
 
-const deleteNode = `-- name: DeleteNode :exec
-DELETE FROM proxy_nodes WHERE id = ?
-`
-
-func (q *Queries) DeleteNode(ctx context.Context, id string) error {
-	_, err := q.db.ExecContext(ctx, deleteNode, id)
-	return err
-}
-
-const deleteStaleAbsentNodes = `-- name: DeleteStaleAbsentNodes :exec
-DELETE FROM proxy_nodes
-WHERE source_present = 0
-  AND (last_seen_at IS NULL OR last_seen_at < ?)
-`
-
-func (q *Queries) DeleteStaleAbsentNodes(ctx context.Context, lastSeenAt sql.NullString) error {
-	_, err := q.db.ExecContext(ctx, deleteStaleAbsentNodes, lastSeenAt)
-	return err
-}
-
 const getNode = `-- name: GetNode :one
-SELECT id, provider, provider_node_id, provider_identity, country, country_code, host_name, ip_address, remote_host, remote_port, transport, ip_type, owner, asn, as_name, location, quality, status, source_score, source_ping_ms, source_speed_bps, source_sessions, latency_ms, consecutive_failures, success_count, failure_count, config_text, fetched_at, last_probed_at, last_success_at, ip_info_updated_at, cooldown_until, last_seen_at, source_present FROM proxy_nodes WHERE id = ?
+SELECT id, provider, provider_node_id, provider_identity, country, country_code, host_name, ip_address, remote_host, remote_port, transport, ip_type, owner, asn, as_name, location, quality, status, source_score, source_ping_ms, source_speed_bps, source_sessions, latency_ms, consecutive_failures, success_count, failure_count, config_text, fetched_at, last_probed_at, last_success_at, ip_info_updated_at, cooldown_until, last_seen_at, source_present, liveness_failures, last_alive_at FROM proxy_nodes WHERE id = ?
 `
 
 func (q *Queries) GetNode(ctx context.Context, id string) (ProxyNode, error) {
@@ -72,12 +52,14 @@ func (q *Queries) GetNode(ctx context.Context, id string) (ProxyNode, error) {
 		&i.CooldownUntil,
 		&i.LastSeenAt,
 		&i.SourcePresent,
+		&i.LivenessFailures,
+		&i.LastAliveAt,
 	)
 	return i, err
 }
 
 const getNodeByIdentity = `-- name: GetNodeByIdentity :one
-SELECT id, provider, provider_node_id, provider_identity, country, country_code, host_name, ip_address, remote_host, remote_port, transport, ip_type, owner, asn, as_name, location, quality, status, source_score, source_ping_ms, source_speed_bps, source_sessions, latency_ms, consecutive_failures, success_count, failure_count, config_text, fetched_at, last_probed_at, last_success_at, ip_info_updated_at, cooldown_until, last_seen_at, source_present FROM proxy_nodes WHERE provider = ? AND provider_identity = ?
+SELECT id, provider, provider_node_id, provider_identity, country, country_code, host_name, ip_address, remote_host, remote_port, transport, ip_type, owner, asn, as_name, location, quality, status, source_score, source_ping_ms, source_speed_bps, source_sessions, latency_ms, consecutive_failures, success_count, failure_count, config_text, fetched_at, last_probed_at, last_success_at, ip_info_updated_at, cooldown_until, last_seen_at, source_present, liveness_failures, last_alive_at FROM proxy_nodes WHERE provider = ? AND provider_identity = ?
 `
 
 type GetNodeByIdentityParams struct {
@@ -123,6 +105,8 @@ func (q *Queries) GetNodeByIdentity(ctx context.Context, arg GetNodeByIdentityPa
 		&i.CooldownUntil,
 		&i.LastSeenAt,
 		&i.SourcePresent,
+		&i.LivenessFailures,
+		&i.LastAliveAt,
 	)
 	return i, err
 }
@@ -200,42 +184,6 @@ func (q *Queries) InsertDiscoveredNode(ctx context.Context, arg InsertDiscovered
 	return err
 }
 
-const listNodeIDs = `-- name: ListNodeIDs :many
-SELECT id FROM proxy_nodes
-`
-
-func (q *Queries) ListNodeIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listNodeIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const markAllNodesAbsent = `-- name: MarkAllNodesAbsent :exec
-UPDATE proxy_nodes SET source_present = 0
-`
-
-func (q *Queries) MarkAllNodesAbsent(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, markAllNodesAbsent)
-	return err
-}
-
 const setNodeStatus = `-- name: SetNodeStatus :exec
 UPDATE proxy_nodes SET status = ? WHERE id = ?
 `
@@ -282,46 +230,6 @@ func (q *Queries) UpdateNodeIPInfo(ctx context.Context, arg UpdateNodeIPInfoPara
 		arg.Location,
 		arg.Quality,
 		arg.IpInfoUpdatedAt,
-		arg.ID,
-	)
-	return err
-}
-
-const updateNodeProbeOutcome = `-- name: UpdateNodeProbeOutcome :exec
-UPDATE proxy_nodes SET
-    status               = ?,
-    latency_ms           = ?,
-    consecutive_failures = ?,
-    success_count        = ?,
-    failure_count        = ?,
-    last_probed_at       = ?,
-    last_success_at      = ?,
-    cooldown_until       = ?
-WHERE id = ?
-`
-
-type UpdateNodeProbeOutcomeParams struct {
-	Status              string         `json:"status"`
-	LatencyMs           int64          `json:"latency_ms"`
-	ConsecutiveFailures int64          `json:"consecutive_failures"`
-	SuccessCount        int64          `json:"success_count"`
-	FailureCount        int64          `json:"failure_count"`
-	LastProbedAt        sql.NullString `json:"last_probed_at"`
-	LastSuccessAt       sql.NullString `json:"last_success_at"`
-	CooldownUntil       sql.NullString `json:"cooldown_until"`
-	ID                  string         `json:"id"`
-}
-
-func (q *Queries) UpdateNodeProbeOutcome(ctx context.Context, arg UpdateNodeProbeOutcomeParams) error {
-	_, err := q.db.ExecContext(ctx, updateNodeProbeOutcome,
-		arg.Status,
-		arg.LatencyMs,
-		arg.ConsecutiveFailures,
-		arg.SuccessCount,
-		arg.FailureCount,
-		arg.LastProbedAt,
-		arg.LastSuccessAt,
-		arg.CooldownUntil,
 		arg.ID,
 	)
 	return err

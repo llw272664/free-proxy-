@@ -19,40 +19,6 @@ func (q *Queries) AddFavorite(ctx context.Context, nodeID string) error {
 	return err
 }
 
-const deleteBlacklist = `-- name: DeleteBlacklist :exec
-DELETE FROM node_blacklist WHERE node_id = ?
-`
-
-func (q *Queries) DeleteBlacklist(ctx context.Context, nodeID string) error {
-	_, err := q.db.ExecContext(ctx, deleteBlacklist, nodeID)
-	return err
-}
-
-const deleteExpiredBlacklist = `-- name: DeleteExpiredBlacklist :exec
-DELETE FROM node_blacklist WHERE expires_at <= ?
-`
-
-func (q *Queries) DeleteExpiredBlacklist(ctx context.Context, expiresAt string) error {
-	_, err := q.db.ExecContext(ctx, deleteExpiredBlacklist, expiresAt)
-	return err
-}
-
-const getBlacklistEntry = `-- name: GetBlacklistEntry :one
-SELECT node_id, reason, marked_at, expires_at FROM node_blacklist WHERE node_id = ?
-`
-
-func (q *Queries) GetBlacklistEntry(ctx context.Context, nodeID string) (NodeBlacklist, error) {
-	row := q.db.QueryRowContext(ctx, getBlacklistEntry, nodeID)
-	var i NodeBlacklist
-	err := row.Scan(
-		&i.NodeID,
-		&i.Reason,
-		&i.MarkedAt,
-		&i.ExpiresAt,
-	)
-	return i, err
-}
-
 const getRuntimeSettings = `-- name: GetRuntimeSettings :one
 SELECT id, routing_mode, force_country, routing_ip_type, connection_enabled, fixed_node_id FROM runtime_settings WHERE id = 1
 `
@@ -80,38 +46,6 @@ func (q *Queries) IsFavorite(ctx context.Context, nodeID string) (bool, error) {
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
-}
-
-const listBlacklist = `-- name: ListBlacklist :many
-SELECT node_id, reason, marked_at, expires_at FROM node_blacklist ORDER BY expires_at
-`
-
-func (q *Queries) ListBlacklist(ctx context.Context) ([]NodeBlacklist, error) {
-	rows, err := q.db.QueryContext(ctx, listBlacklist)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []NodeBlacklist{}
-	for rows.Next() {
-		var i NodeBlacklist
-		if err := rows.Scan(
-			&i.NodeID,
-			&i.Reason,
-			&i.MarkedAt,
-			&i.ExpiresAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listFavorites = `-- name: ListFavorites :many
@@ -156,15 +90,6 @@ UPDATE runtime_settings SET connection_enabled = ? WHERE id = 1
 
 func (q *Queries) SetConnectionEnabled(ctx context.Context, connectionEnabled int64) error {
 	_, err := q.db.ExecContext(ctx, setConnectionEnabled, connectionEnabled)
-	return err
-}
-
-const setFixedNode = `-- name: SetFixedNode :exec
-UPDATE runtime_settings SET fixed_node_id = ? WHERE id = 1
-`
-
-func (q *Queries) SetFixedNode(ctx context.Context, fixedNodeID sql.NullString) error {
-	_, err := q.db.ExecContext(ctx, setFixedNode, fixedNodeID)
 	return err
 }
 

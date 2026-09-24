@@ -62,6 +62,8 @@ func NewServer(deps *Deps) *echo.Echo {
 	g.PUT("/system/access", h.UpdateAccess)
 	g.GET("/system/config", h.GetSystemConfig)
 	g.PUT("/system/config", h.UpdateSystemConfig)
+	g.GET("/system/update", h.UpdateStatus)
+	g.POST("/system/update", h.RunUpdate)
 
 	g.GET("/logs", h.GetLogs)
 	g.GET("/logs/export", h.ExportLogs)

@@ -4,7 +4,6 @@
 package platform
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -153,23 +152,6 @@ func rootCheck() Check {
 		return Check{Name: "root", OK: false, Detail: "run as root for tunnel/routing operations"}
 	}
 	return Check{Name: "root", OK: true, Detail: "uid=0"}
-}
-
-// OSRelease returns the distro ID from /etc/os-release (best effort).
-func OSRelease() string {
-	f, err := os.Open("/etc/os-release")
-	if err != nil {
-		return runtime.GOOS
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := sc.Text()
-		if strings.HasPrefix(line, "ID=") {
-			return strings.Trim(strings.TrimPrefix(line, "ID="), `"`)
-		}
-	}
-	return runtime.GOOS
 }
 
 func firstLine(s string) string {

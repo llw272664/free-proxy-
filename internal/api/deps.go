@@ -8,6 +8,7 @@ import (
 	"github.com/masteralanlab/free-proxy/internal/security"
 	"github.com/masteralanlab/free-proxy/internal/services"
 	"github.com/masteralanlab/free-proxy/internal/store"
+	"github.com/masteralanlab/free-proxy/internal/updater"
 )
 
 // Deps is the explicitly-wired dependency container (replaces app.state).
@@ -30,6 +31,7 @@ type Deps struct {
 	Maintenance *services.MaintenanceService
 	AutoSwitch  *services.AutoSwitchService
 	Liveness    *services.LivenessService
+	Updater     *updater.Service
 
 	MaintenanceMon   *services.MaintenanceMonitor
 	ActiveLatencyMon *services.ActiveLatencyMonitor
